@@ -61,12 +61,13 @@ async function fetchState() {
     const data = await r.json();
     const newKey = `${data.round}-${data.question}`;
     const questionChanged = lastKnownKey !== null && newKey !== lastKnownKey;
-    currentData = data;
     if (lastKnownKey === null || questionChanged || data.submitted) {
       // Safe to resync from server: first load, question actually advanced, or server confirms our submit landed.
+      // currentData/localMarks are only touched here — NEVER in the else-branch below, so unsubmitted taps
+      // between polls can't be clobbered by a background refresh (was the root cause of taps getting silently lost).
       render(data);
     } else {
-      // Same question, not yet submitted — DON'T overwrite unsaved taps, just refresh the status pill/closed state.
+      // Same question, not yet submitted — DON'T touch currentData/localMarks, just refresh the status pill/closed state.
       updateStatusOnly(data);
     }
     lastKnownKey = newKey;
@@ -82,21 +83,27 @@ function updateStatusOnly(data) {
   pill.textContent = `${roundLabel} · Câu ${data.question}` + (data.status === 'closed' ? ' · ĐÃ ĐÓNG' : '');
   pill.className = 'state-pill' + (data.status === 'closed' ? ' closed' : '');
   if (data.status !== 'open') {
-    // question got closed while CTV was mid-tap — re-render fully to lock the buttons and show the banner.
+    // question got closed while CTV was mid-tap — no more taps possible now, safe to do a full resync.
     render(data);
   }
 }
 
 function render(data) {
+  // FULL resync: only call this when it's actually safe to discard any in-flight local taps
+  // (first load / question changed / submit confirmed / question closed).
+  currentData = data;
+  localMarks = {};
+  data.students.forEach(s => { if (s.mark !== null) localMarks[s.number] = s.mark; });
+  renderCards(data);
+}
+
+function renderCards(data) {
   document.getElementById('ctvName').textContent = data.ctv.name;
   document.getElementById('ctvRange').textContent = `Phụ trách HS #${data.ctv.start}–#${data.ctv.end}`;
   const pill = document.getElementById('statePill');
   const roundLabel = data.round === 1 ? 'Vòng 1' : 'Vòng 2';
   pill.textContent = `${roundLabel} · Câu ${data.question}` + (data.status === 'closed' ? ' · ĐÃ ĐÓNG' : '');
   pill.className = 'state-pill' + (data.status === 'closed' ? ' closed' : '');
-
-  localMarks = {};
-  data.students.forEach(s => { if (s.mark !== null) localMarks[s.number] = s.mark; });
 
   const closedBanner = data.status === 'closed'
     ? '<div class="closed-banner">Câu hỏi đã đóng chấm — chờ câu tiếp theo</div>'
@@ -125,9 +132,10 @@ function render(data) {
 }
 
 function mark(num, val) {
+  // Only ever mutate localMarks (the single source of truth for unsubmitted taps) — never touch
+  // currentData.students/render() here, so a concurrent background poll can't wipe earlier taps.
   localMarks[num] = val;
-  currentData.students = currentData.students.map(s => s.number === num ? {...s, mark: val} : s);
-  render(currentData);
+  renderCards(currentData);
 }
 
 async function submitMarks() {
