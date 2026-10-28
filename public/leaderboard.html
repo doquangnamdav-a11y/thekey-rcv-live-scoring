@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bảng xếp hạng trực tiếp — Rung Chuông Vàng</title>
 <style>
@@ -42,7 +42,8 @@
 <script>
 async function load() {
   try {
-    const r = await fetch('/api/leaderboard');
+    const r = await fetch('/api/leaderboard?k=' + encodeURIComponent(new URLSearchParams(location.search).get('k') || ''));
+    if (!r.ok) { document.getElementById('stateLine').textContent = 'Cần link có mã (lấy trong trang quản trị)'; return; }
     const data = await r.json();
     const s = data.state;
     const roundLabel = s.round === 1 ? 'Vòng 1' : 'Vòng 2';

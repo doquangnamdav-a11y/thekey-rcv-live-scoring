@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Quản trị — Rung Chuông Vàng</title>
 <style>
@@ -27,6 +27,12 @@
   .msg{font-size:13px;margin-top:6px}
   .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
   a.link{color:var(--red);word-break:break-all}
+  .qprev{font-size:13px;width:100%;border-collapse:collapse;margin-top:8px}
+  .qprev td,.qprev th{border-bottom:1px solid #eee;padding:4px 6px;text-align:left;vertical-align:top}
+  .qprev .ans{color:var(--ok);font-weight:700}
+  .errlist{color:var(--bad);font-size:13px;margin:6px 0 0;padding-left:18px}
+  .btn-on{outline:3px solid #F5C518}
+  .cur-q{font-size:14px;background:#faf6f0;border-radius:8px;padding:8px 10px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -50,18 +56,45 @@
   </div>
 
   <div class="card">
+    <h2>Màn chiếu (máy chiếu mở link có mã: <a class="link" id="scrLink" href="#" target="_blank">nhập mã quản trị để thấy link</a>)</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Bấm theo thứ tự như trình chiếu slide:
+      Mở vòng → Hiện câu (đề + ảnh) → ▶ Play (4 phương án + đếm ngược + nhạc) → Đáp án → "Sang câu tiếp →" ở khung trên.</p>
+    <div class="btn-row">
+      <button class="btn-secondary" id="step-opener" onclick="step('opener')">Mở vòng</button>
+      <button class="btn-secondary" id="step-question" onclick="step('question')">Hiện câu</button>
+      <button class="btn-primary" id="step-play" onclick="step('play')">▶ Play</button>
+      <label style="font-size:13px">đếm <input type="number" id="secs" min="1" max="300" style="width:64px"> giây</label>
+      <button class="btn-secondary" id="step-answer" onclick="step('answer')">Đáp án</button>
+      <button class="btn-secondary" id="step-leaderboard" onclick="step('leaderboard')">Hiện bảng điểm</button>
+      <button class="btn-secondary" id="step-end" onclick="step('end')">Màn kết thúc</button>
+    </div>
+    <div class="btn-row" style="align-items:center;font-size:13px">
+      <label><input type="checkbox" id="sndOn" onchange="sound()"> Âm thanh trên màn chiếu</label>
+      <label>Âm lượng <input type="range" id="sndVol" min="0" max="100" onchange="sound()"></label>
+      <label>Giây mặc định (câu không ghi giây) <input type="number" id="defSecs" min="1" max="300" style="width:64px" onchange="sound()"></label>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 0">Máy chiếu: mở /screen.html, bấm 1 lần "🔊 Bật âm thanh" (trình duyệt bắt buộc), rồi bấm F11 cho toàn màn hình.</p>
+    <div class="cur-q" id="curQ">—</div>
+    <div class="msg" id="scrMsg"></div>
+  </div>
+
+  <div class="card">
     <h2>CTV đã chấm câu hiện tại?</h2>
     <div id="ctvStatus">—</div>
   </div>
 
   <div class="card">
-    <h2>Link cho từng CTV</h2>
+    <h2>Link cho từng CTV (mã ngẫu nhiên — chỉ gửi riêng cho CTV)</h2>
     <div id="ctvLinks">—</div>
+    <div class="btn-row"><button class="btn-secondary" onclick="newKey('ctv')">Tạo lại toàn bộ link CTV (link cũ hết hiệu lực)</button></div>
   </div>
 
   <div class="card">
     <h2>Link bảng xếp hạng (chiếu màn hình lớn)</h2>
-    <a class="link" id="lbLink" href="/leaderboard.html" target="_blank">/leaderboard.html</a>
+    <a class="link" id="lbLink" href="#" target="_blank">—</a>
+    <p style="font-size:13px;color:var(--muted);margin:6px 0 0">Màn chiếu, bảng xếp hạng, ảnh và nhạc của đề chỉ mở được bằng link có mã này.
+      Lộ link → bấm tạo mã mới (máy chiếu phải mở lại link mới).</p>
+    <div class="btn-row"><button class="btn-secondary" onclick="newKey('screen')">Tạo mã màn chiếu mới</button></div>
   </div>
 
   <div class="card">
@@ -70,6 +103,39 @@
     <textarea id="rosterText" placeholder="1,Nguyễn Văn A&#10;2,Trần Thị B&#10;..."></textarea>
     <div class="btn-row"><button class="btn-primary" onclick="uploadRoster()">Lưu danh sách</button></div>
     <div class="msg" id="rosterMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Nhập đề từ PowerPoint (.pptx) — cách chính</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Chọn tệp bộ đề đúng khuôn slide của trung tâm (slide "Hội thi RUNG CHUÔNG VÀNG – Vòng …",
+      slide "Câu số N"). Máy đọc: đề, 4 phương án, đáp án đúng (= phương án CÒN LẠI khi bấm Đáp án trong slide), câu tự luận
+      (đáp án mẫu), ảnh minh hoạ, số giây đếm, nhạc gắn trong slide. Xem trước rồi bấm Lưu.</p>
+    <p style="font-size:13px;color:var(--bad);margin:0 0 6px">⚠ Máy chủ miễn phí mất đề + ảnh + nhạc mỗi lần cập nhật phần mềm — NHẬP LẠI ĐỀ TRƯỚC GIỜ THI và mở thử màn chiếu.</p>
+    <input type="file" id="pptxFile" accept=".pptx">
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="readPptx()">Đọc tệp &amp; xem trước</button>
+      <button class="btn-primary" id="pptxSave" onclick="savePptx()" disabled>Lưu bộ đề</button>
+    </div>
+    <div class="msg" id="pMsg"></div>
+    <div id="pPrev"></div>
+  </div>
+
+  <div class="card">
+    <h2>Hoặc dán 20 câu hỏi (2 vòng × 10 câu) — không có ảnh/nhạc</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 6px">
+      Cách dễ nhất: soạn trong Excel 8 cột <b>Vòng | Câu | Đề bài | A | B | C | D | Đáp án</b>, bôi đen các dòng rồi Copy → dán vào ô dưới.
+      Gõ tay thì ngăn cột bằng dấu <code>|</code>, mỗi câu một dòng. Câu trắc nghiệm: điền đủ A–D, Đáp án ghi 1 chữ A/B/C/D.
+      Câu tự luận/điền từ: để TRỐNG A–D, Đáp án ghi nội dung đúng. Dòng tiêu đề (Vòng…) có cũng được.</p>
+    <p style="font-size:13px;margin:0 0 6px">Ví dụ:<br><code>1 | 1 | What colour is the sky? | red | blue | green | black | B</code><br>
+      <code>2 | 10 | Điền từ: I ___ a student. | | | | | am</code></p>
+    <p style="font-size:13px;color:var(--bad);margin:0 0 6px">⚠ Máy chủ miễn phí có thể mất dữ liệu khi cập nhật phần mềm — ô dán được giữ trên máy này, kiểm tra màn chiếu trước giờ thi và bấm Lưu lại nếu mất.</p>
+    <textarea id="qText" style="min-height:180px" placeholder="1 | 1 | Đề câu 1 | A | B | C | D | B"></textarea>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="questions(false)">Xem trước</button>
+      <button class="btn-primary" onclick="questions(true)">Lưu câu hỏi</button>
+    </div>
+    <div class="msg" id="qMsg"></div>
+    <div id="qPrev"></div>
   </div>
 
   <div class="card">
@@ -100,8 +166,8 @@ function adminKey() { return document.getElementById('adminKey').value; }
 async function adminFetch(url, opts = {}) {
   opts.headers = Object.assign({}, opts.headers, { 'X-Admin-Key': adminKey(), 'Content-Type': 'application/json' });
   const r = await fetch(url, opts);
-  if (r.status === 401) {
-    document.getElementById('keyMsg').textContent = 'Sai mã quản trị';
+  if (r.status === 401 || r.status === 429) {
+    document.getElementById('keyMsg').textContent = r.status === 429 ? 'Thử sai quá nhiều lần — chờ 15 phút' : 'Sai mã quản trị';
     document.getElementById('keyMsg').className = 'msg err';
     throw new Error('unauthorized');
   }
@@ -120,8 +186,26 @@ async function refresh() {
     document.getElementById('ctvStatus').innerHTML = d.ctvStatus.map(c =>
       `<div class="row"><span><span class="dot ${c.submitted?'yes':'no'}"></span>${c.name} (HS ${c.range})</span><span>${c.submitted?'Đã chấm':'Chưa chấm'}</span></div>`
     ).join('');
+    screenKey = d.screenKey;
+    const sl = `${location.origin}/screen.html?k=${encodeURIComponent(d.screenKey)}`, ll = `${location.origin}/leaderboard.html?k=${encodeURIComponent(d.screenKey)}`;
+    Object.assign(document.getElementById('scrLink'), { href: sl, textContent: sl });
+    Object.assign(document.getElementById('lbLink'), { href: ll, textContent: ll });
+    ['opener', 'question', 'play', 'answer', 'leaderboard', 'end'].forEach(m =>
+      document.getElementById('step-' + m).classList.toggle('btn-on', d.screen && d.screen.step === m));
+    const q = d.currentQuestion;
+    const qk = `${d.round}-${d.question}`;
+    if (qk !== lastQ) { lastQ = qk; document.getElementById('secs').value = (q && q.seconds) || d.screen.defaultSeconds; }
+    if (!soundInit) {
+      soundInit = true;
+      document.getElementById('sndOn').checked = d.screen.sound.on;
+      document.getElementById('sndVol').value = Math.round(d.screen.sound.volume * 100);
+      document.getElementById('defSecs').value = d.screen.defaultSeconds;
+    }
+    document.getElementById('curQ').innerHTML = q
+      ? `<b>${esc(d.roundTitle)} · Câu số ${esc(q.label || d.question)}:</b> ${esc(q.text)}<br><span class="ans">Đáp án: ${esc(q.answer)}${q.options ? ' — ' + esc(q.options[q.answer]) : ''}</span>`
+      : `<span style="color:var(--bad)">Chưa có nội dung cho Vòng ${d.round} Câu ${d.question} (đã lưu ${d.questionCount} câu)</span>`;
     document.getElementById('ctvLinks').innerHTML = d.ctvStatus.map(c =>
-      `<div class="row"><span>${c.name} (HS ${c.range})</span><a class="link" href="/ctv.html?token=ctv${c.id}" target="_blank">/ctv.html?token=ctv${c.id}</a></div>`
+      `<div class="row"><span>${c.name} (HS ${c.range})</span><a class="link" href="/ctv.html?token=${encodeURIComponent(c.token)}" target="_blank">${location.origin}/ctv.html?token=${esc(c.token)}</a></div>`
     ).join('');
   } catch (e) {}
 }
@@ -132,6 +216,87 @@ async function advance(action) {
     document.getElementById('advMsg').textContent = 'Đã cập nhật.';
     document.getElementById('advMsg').className = 'msg ok';
     refresh();
+  } catch (e) {}
+}
+
+function esc(s) { const e = document.createElement('div'); e.textContent = s == null ? '' : String(s); return e.innerHTML; }
+
+let lastQ = '', soundInit = false, pptxToken = null, screenKey = '';
+async function newKey(what) {
+  if (!confirm(what === 'ctv' ? 'Tạo link CTV mới? Link đã gửi cho CTV sẽ hết hiệu lực.' : 'Tạo mã màn chiếu mới? Máy chiếu đang mở phải mở lại link mới.')) return;
+  try { await adminFetch('/api/admin/keys', { method: 'POST', body: JSON.stringify({ what }) }); refresh(); } catch (e) {}
+}
+async function step(s) {
+  try {
+    await adminFetch('/api/admin/screen', { method: 'POST', body: JSON.stringify({ step: s, seconds: Number(document.getElementById('secs').value) }) });
+    document.getElementById('scrMsg').textContent = 'Màn chiếu đã chuyển.';
+    document.getElementById('scrMsg').className = 'msg ok';
+    refresh();
+  } catch (e) {}
+}
+
+async function sound() {
+  try {
+    await adminFetch('/api/admin/sound', { method: 'POST', body: JSON.stringify({ on: document.getElementById('sndOn').checked,
+      volume: Number(document.getElementById('sndVol').value) / 100, defaultSeconds: Number(document.getElementById('defSecs').value) }) });
+  } catch (e) {}
+}
+
+async function readPptx() {
+  const f = document.getElementById('pptxFile').files[0];
+  const msg = document.getElementById('pMsg');
+  if (!f) { msg.textContent = 'Chọn tệp .pptx trước.'; msg.className = 'msg err'; return; }
+  msg.textContent = 'Đang tải lên và đọc tệp…'; msg.className = 'msg';
+  document.getElementById('pptxSave').disabled = true;
+  try {
+    const r = await fetch('/api/admin/pptx', { method: 'POST', headers: { 'X-Admin-Key': adminKey(), 'Content-Type': 'application/octet-stream' }, body: f });
+    const d = await r.json();
+    if (!r.ok) { msg.textContent = d.error || 'Lỗi đọc tệp'; msg.className = 'msg err'; return; }
+    pptxToken = d.token;
+    const errs = d.errors.length ? `<ul class="errlist">${d.errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : '';
+    const warns = d.warnings.length ? `<details style="font-size:13px;margin-top:6px"><summary>${d.warnings.length} lưu ý (bấm để xem)</summary><ul>${d.warnings.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : '';
+    const body = d.rounds.map(rd => `<tr><td colspan="5" style="background:#faf6f0"><b>${esc(rd.title)}</b> — ${rd.questions.length} câu${rd.notes ? ' · ' + esc(rd.notes) : ''}</td></tr>` +
+      rd.questions.map(q => `<tr><td>Câu số ${q.label}<br><span style="color:#888">slide ${q.slide}</span></td>
+        <td>${esc(q.text)}${q.options ? '<br>' + ['A','B','C','D'].map(L => `<span class="${L === q.answer ? 'ans' : ''}">${L}. ${esc(q.options[L])}</span>`).join(' &nbsp; ') : '<br><i>Tự luận</i>'}</td>
+        <td class="ans">${q.options ? q.answer : esc(q.answer)}</td>
+        <td>${q.image ? `<img src="/media/${q.image}?k=${encodeURIComponent(screenKey)}" style="max-width:90px;max-height:60px">` : ''}</td>
+        <td>${q.seconds || '—'} giây${q.sndPlay ? '<br>🎵' : ''}${q.sndAnswer ? ' 🔔' : ''}</td></tr>`).join('')).join('');
+    document.getElementById('pPrev').innerHTML = errs + warns + `<table class="qprev"><tr><th>Câu</th><th>Đề / phương án</th><th>Đáp án</th><th>Ảnh</th><th>Đếm</th></tr>${body}</table>`;
+    msg.textContent = `Đọc được ${d.rounds.length} vòng, ${d.count} câu${d.endSound ? ', có âm kết' : ''}.` + (d.errors.length ? ` Có ${d.errors.length} lỗi — sửa slide rồi đọc lại.` : ' Kiểm tra rồi bấm "Lưu bộ đề".');
+    msg.className = d.errors.length ? 'msg err' : 'msg ok';
+    document.getElementById('pptxSave').disabled = !!d.errors.length;
+  } catch (e) { msg.textContent = 'Lỗi tải tệp, thử lại.'; msg.className = 'msg err'; }
+}
+
+async function savePptx() {
+  const msg = document.getElementById('pMsg');
+  try {
+    const d = await adminFetch('/api/admin/pptx/commit', { method: 'POST', body: JSON.stringify({ token: pptxToken }) });
+    if (d.error) { msg.textContent = d.error; msg.className = 'msg err'; return; }
+    msg.textContent = `Đã lưu ${d.count} câu (${d.rounds} vòng). Màn chiếu về slide mở vòng đầu.`; msg.className = 'msg ok';
+    document.getElementById('pptxSave').disabled = true;
+    refresh();
+  } catch (e) {}
+}
+
+const qText = document.getElementById('qText');
+try { qText.value = localStorage.getItem('rcv_questions_text') || ''; } catch (e) {}
+qText.addEventListener('input', () => { try { localStorage.setItem('rcv_questions_text', qText.value); } catch (e) {} });
+
+async function questions(doSave) {
+  const msg = document.getElementById('qMsg');
+  try {
+    const d = await adminFetch('/api/admin/questions', { method: 'POST', body: JSON.stringify({ text: qText.value, save: doSave }) });
+    const errs = d.errors.length ? `<ul class="errlist">${d.errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : '';
+    const miss = d.missing.length ? `<p class="msg err">Còn thiếu: ${d.missing.join(', ')}</p>` : '';
+    const rows = d.rows.map(q => `<tr><td>V${q.round}C${q.question}</td><td>${esc(q.text)}${q.options
+      ? '<br>' + ['A','B','C','D'].map(L => `<span class="${L === q.answer ? 'ans' : ''}">${L}. ${esc(q.options[L])}</span>`).join(' &nbsp; ')
+      : ''}</td><td class="ans">${q.options ? q.answer : esc(q.answer)}</td></tr>`).join('');
+    document.getElementById('qPrev').innerHTML = errs + miss +
+      (rows ? `<table class="qprev"><tr><th>Câu</th><th>Đề / phương án</th><th>Đáp án</th></tr>${rows}</table>` : '');
+    if (d.errors.length) { msg.textContent = `Có ${d.errors.length} dòng lỗi — sửa rồi bấm lại${doSave ? ' (CHƯA lưu)' : ''}.`; msg.className = 'msg err'; }
+    else if (doSave) { msg.textContent = `Đã lưu ${d.saved} câu.`; msg.className = 'msg ok'; refresh(); }
+    else { msg.textContent = `Đọc được ${d.rows.length} câu, không có lỗi. Bấm "Lưu câu hỏi".`; msg.className = 'msg ok'; }
   } catch (e) {}
 }
 

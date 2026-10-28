@@ -9,3 +9,7 @@ nav_ctv.json
 open_ctv.json
 open_leaderboard.json
 send_report.json
+media/
+shots/
+__pycache__/
+data-local/

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Màn chiếu — Rung Chuông Vàng</title>
+<style>
+  /* Khung 960×540 = đúng toạ độ slide PowerPoint (1 đơn vị = 1pt), phóng to vừa màn hình 16:9. */
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  #stage{position:absolute;left:50%;top:50%;width:960px;height:540px;transform-origin:center;overflow:hidden;
+    font-family:Calibri,"Segoe UI",Arial,sans-serif;color:#000}
+  .abs{position:absolute}
+  .fill{position:absolute;inset:0;width:100%;height:100%}
+  .center{display:flex;align-items:center;justify-content:center;text-align:center}
+  /* slide câu */
+  .bg-cau{background:url(/assets/bg-cau.webp) center/cover no-repeat}
+  .label{left:720px;top:45px;width:200px;height:46px;font-size:32px;font-weight:700;display:flex;align-items:center}
+  .qtext{font-weight:700;line-height:1.18;white-space:pre-line}
+  .qimg{object-fit:contain}
+  .opt{width:300px;height:87px;background:url(/assets/khung-phuong-an.webp) center/100% 100% no-repeat;color:#f00;
+    font-weight:700;padding:0 26px 6px;line-height:1.05;transition:opacity .6s}
+  .opt.hide{opacity:0}
+  .btn-img{background-position:center;background-size:100% 100%;background-repeat:no-repeat}
+  .play{background-image:url(/assets/nut-play.webp)}
+  .dapan{background-image:url(/assets/nut-dap-an.webp)}
+  .next{background-image:url(/assets/nut-next.webp)}
+  .wreath{left:16px;top:38px;width:110px;height:123px;background:url(/assets/vong-hoa.webp) center/contain no-repeat;
+    transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+  .wreath.off{transform:translateY(-200px)}
+  .count{left:16px;top:58px;width:110px;height:84px;font-size:44px;font-weight:700}
+  .model{left:261px;top:319px;width:411px;min-height:72px;background:#fff;border:3px solid #C7090E;border-radius:10px;
+    color:#C7090E;font-size:30px;font-weight:700;padding:6px 14px;white-space:pre-line}
+  /* slide mở vòng */
+  .opener{background:radial-gradient(circle at 50% 50%,#B11111 0%,#860202 100%)}
+  .tab{left:245px;top:-7px;width:469px;height:65px;background:#fff;clip-path:polygon(0 0,100% 0,96% 100%,4% 100%);border-radius:0 0 10px 10px;
+    display:flex;align-items:center;justify-content:center;gap:18px;color:#D74342;font-weight:700;font-size:20px;padding-top:6px}
+  .tab img{height:44px}
+  .hoithi{left:0;top:123px;width:960px;height:68px;color:#fff;font-weight:700;font-size:53px}
+  .rcv{left:0;top:239px;width:960px;height:89px;font-weight:700;font-size:80px;letter-spacing:1px;
+    background:linear-gradient(90deg,#fff 0%,#FFFFD8 45%,#FFFD07 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,.35))}
+  .vong{left:0;top:455px;width:960px;color:#fff;font-weight:700;font-size:32px}
+  .notes{left:120px;top:495px;width:720px;color:#FFFFD8;font-size:20px;font-weight:700;white-space:pre-line}
+  #lb{position:fixed;inset:0;width:100%;height:100%;border:0;display:none;background:#5a0305}
+  #unlock{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:9}
+  #unlock button{font:700 32px Calibri,Arial,sans-serif;padding:22px 44px;border-radius:16px;border:0;background:#F5C518;color:#5a0305;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<iframe id="lb" title="Bảng xếp hạng"></iframe>
+<div id="unlock"><button type="button" id="unlockBtn">🔊 Bật âm thanh</button></div>
+<audio id="sfx" preload="auto"></audio>
+<script>
+// Máy chiếu tự cập nhật mỗi giây theo bước Admin bấm; không cần chạm (trừ 1 lần "Bật âm thanh" — trình duyệt bắt buộc).
+// Phương án chỉ có trong dữ liệu từ bước Play; đáp án chỉ từ bước "Đáp án" (máy chủ không gửi trước).
+const stage = document.getElementById('stage');
+const K = new URLSearchParams(location.search).get('k') || '';   // mã màn chiếu (Admin cấp)
+const sfx = document.getElementById('sfx');
+window.__audioLog = [];
+let d = null, sig = '', offset = 0, sndKey = '', unlocked = false;
+
+function fit() { stage.style.transform = `translate(-50%,-50%) scale(${Math.min(innerWidth / 960, innerHeight / 540)})`; }
+addEventListener('resize', fit); fit();
+
+function esc(s) { const e = document.createElement('div'); e.textContent = s == null ? '' : String(s); return e.innerHTML; }
+function fitSize(text, base, min, per) { const n = (text || '').length; return Math.max(min, Math.min(base, Math.round(base * per / Math.max(n, 1)))); }
+
+function remaining() {
+  if (!d || !d.playAt) return null;
+  return Math.max(0, d.seconds - Math.floor((Date.now() + offset - d.playAt) / 1000));
+}
+
+function opener(title, notes) {
+  return `<div class="fill opener"></div>
+    <img class="abs" src="/assets/chuong-linh-vat.webp" style="left:89px;top:101px;width:380px;height:275px;opacity:.16;object-fit:contain" alt="">
+    <img class="abs" src="/assets/tia-lua-1.webp" style="left:-32px;top:0;width:1023px;height:540px" alt="">
+    <img class="abs" src="/assets/tia-lua-2.webp" style="left:0;top:0;width:960px;height:540px" alt="">
+    <img class="abs" src="/assets/chuong.webp" style="left:776px;top:356px;width:183px;height:183px;opacity:.2" alt="">
+    <img class="abs" src="/assets/den-chieu.webp" style="left:805px;top:0;width:154px;height:204px" alt="">
+    <div class="abs tab"><img src="/assets/logo-thekey.webp" alt="THE KEY">HỆ THỐNG GIÁO DỤC THE KEY</div>
+    <div class="abs hoithi center">Hội thi</div>
+    <div class="abs rcv center">RUNG CHUÔNG VÀNG</div>
+    <div class="abs btn-img play" style="left:317px;top:333px;width:324px;height:106px"></div>
+    <div class="abs vong center">${esc(title)}</div>
+    ${notes ? `<div class="abs notes center">${esc(notes)}</div>` : ''}`;
+}
+
+function questionSlide() {
+  const q = d.q, step = d.step, mcq = q.kind === 'mcq';
+  const playing = step === 'play' || step === 'answer';
+  let h = `<div class="fill bg-cau"></div><div class="abs label">Câu số ${esc(q.label)}</div>`;
+  h += `<div class="abs wreath ${playing ? '' : 'off'}" id="wreath"></div><div class="abs count center" id="count"></div>`;
+  if (mcq) {
+    const hasImg = !!q.image;
+    const tb = hasImg ? { l: 30, t: 130, w: 570, h: 92 } : { l: 30, t: 150, w: 570, h: 230 };
+    h += `<div class="abs qtext center" style="left:${tb.l}px;top:${tb.t}px;width:${tb.w}px;height:${tb.h}px;font-size:${fitSize(q.text, 40, 22, hasImg ? 32 : 60)}px">${esc(q.text)}</div>`;
+    if (hasImg) h += `<img class="abs qimg" src="${esc(q.image)}" style="left:140px;top:226px;width:360px;height:172px" alt="">`;
+    const ys = { A: 121, B: 222, C: 318, D: 418 };
+    if (q.options) {
+      for (const L of ['A', 'B', 'C', 'D']) {
+        const t = `${L}. ${q.options[L]}`;
+        const hide = step === 'answer' && q.answer && L !== q.answer;
+        h += `<div class="abs opt center ${hide ? 'hide' : ''}" data-l="${L}" style="left:627px;top:${ys[L]}px;font-size:${fitSize(t, 34, 18, 13)}px">${esc(t)}</div>`;
+      }
+    }
+    h += btnRow(173, 410, 270, 88, 198, 418, 256, 77);
+  } else {
+    h += `<div class="abs qtext center" style="left:20px;top:140px;width:920px;height:170px;font-size:${fitSize(q.text, 38, 24, 110)}px">${esc(q.text)}</div>`;
+    if (step === 'answer' && q.answer) h += `<div class="abs model center" id="model">${esc(q.answer)}</div>`;
+    h += btnRow(651, 430, 270, 88, 658, 437, 256, 77);
+  }
+  return h;
+}
+
+function btnRow(px, py, pw, ph, nx, ny, nw, nh) {
+  // trước Play: nút Play · đang đếm: không nút · hết giờ: nút "???" (Đáp án) · sau Đáp án: nút Next
+  const id = 'btn';
+  return `<div class="abs btn-img" id="${id}" data-p="${px},${py},${pw},${ph}" data-n="${nx},${ny},${nw},${nh}"></div>`;
+}
+
+function updateDynamic() {
+  // phần đổi theo từng giây: số đếm, vòng hoa, nút Play/???/Next
+  if (!d || !d.q) return;
+  const c = document.getElementById('count'), w = document.getElementById('wreath'), b = document.getElementById('btn');
+  if (!c || !b) return;
+  const r = remaining();
+  const counting = d.step === 'play' && r !== null && r > 0;
+  c.textContent = counting ? r : '';                 // hết giờ: số 0 và vòng hoa cùng rút đi như slide
+  if (w) w.classList.toggle('off', !counting);
+  let kind = '', box = b.dataset.p;
+  if (d.step === 'question') kind = 'play';
+  else if (d.step === 'play' && r === 0) kind = 'dapan';
+  else if (d.step === 'answer') { kind = 'next'; box = b.dataset.n; }
+  const [x, y, ww, hh] = box.split(',');
+  b.className = 'abs btn-img ' + kind;
+  Object.assign(b.style, { left: x + 'px', top: y + 'px', width: ww + 'px', height: hh + 'px', display: kind ? 'block' : 'none' });
+}
+
+function render() {
+  const lb = document.getElementById('lb');
+  if (d.step === 'leaderboard') {
+    if (!lb.src) lb.src = '/leaderboard.html?k=' + encodeURIComponent(K);
+    lb.style.display = 'block';
+    stage.innerHTML = '';
+    return;
+  }
+  lb.style.display = 'none';
+  if (d.step === 'end') {
+    stage.innerHTML = opener('Cảm ơn quý thầy cô và các em!', '');
+  } else if (d.step === 'opener' || !d.q) {
+    stage.innerHTML = opener(d.round.title, d.round.notes);
+  } else {
+    stage.innerHTML = questionSlide();
+  }
+  updateDynamic();
+}
+
+function logAudio(ev) { window.__audioLog.push({ ev, src: sfx.currentSrc || sfx.src, t: sfx.currentTime, at: Date.now() }); }
+['play', 'pause', 'ended'].forEach((e) => sfx.addEventListener(e, () => logAudio(e)));
+
+function sound() {
+  // nhạc theo đúng slide: Play → nhạc đếm (âm gắn nút Play); Đáp án → âm công bố (nếu slide có); slide kết → âm kết
+  const s = d.sound;
+  sfx.volume = Math.max(0, Math.min(1, s.volume));
+  let want = null, from = 0;
+  if (d.step === 'play' && s.play) { want = s.play; from = Math.max(0, (Date.now() + offset - d.playAt) / 1000); }
+  else if (d.step === 'answer' && s.answer) want = s.answer;
+  else if (d.step === 'end' && s.end) want = s.end;
+  const k = `${d.step}|${d.playAt}|${want}|${d.state.round}-${d.state.question}`;
+  if (!s.on || !want) { if (!sfx.paused) sfx.pause(); sndKey = s.on ? k : 'off'; return; }
+  if (k === sndKey || !unlocked) return;
+  sndKey = k;
+  sfx.src = want;
+  const go = () => { try { sfx.currentTime = from; } catch (e) {} sfx.play().catch(() => {}); };
+  if (from > 0.3) sfx.addEventListener('loadedmetadata', go, { once: true }); else go();
+}
+
+async function load() {
+  try {
+    const t0 = Date.now();
+    const r = await fetch('/api/screen?k=' + encodeURIComponent(K), { cache: 'no-store' });
+    if (!r.ok) {
+      stage.innerHTML = '<div class="fill opener"></div><div class="abs vong center" style="top:240px">Cần link màn chiếu có mã (lấy trong trang quản trị)</div>';
+      document.getElementById('unlock').style.display = 'none';
+      return;
+    }
+    const nd = await r.json();
+    offset = nd.now - Math.round((t0 + Date.now()) / 2);
+    const { now, ...rest } = nd;
+    const s = JSON.stringify(rest);
+    d = nd;
+    if (s !== sig) { sig = s; render(); }
+    sound();
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById('unlockBtn').addEventListener('click', () => {
+  unlocked = true;
+  document.getElementById('unlock').style.display = 'none';
+  // một lần phát/tạm dừng để trình duyệt cho phép phát âm thanh về sau
+  sfx.muted = true; sfx.src = (d && d.preload && d.preload[0]) || ''; sfx.play().catch(() => {}).finally(() => { sfx.pause(); sfx.muted = false; sndKey = ''; if (d) sound(); });
+  if (d && d.preload) d.preload.forEach((u) => { const a = new Audio(); a.preload = 'auto'; a.src = u; });
+});
+
+load();
+setInterval(load, 1000);
+setInterval(updateDynamic, 200);
+</script>
+</body>
+</html>
