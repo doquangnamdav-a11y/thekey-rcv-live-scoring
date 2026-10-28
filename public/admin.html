@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quản trị — Rung Chuông Vàng</title>
+<style>
+  :root{ --red:#C7090E; --ink:#1a1a1a; --bg:#f7f3ef; --ok:#1e8e3e; --bad:#C7090E; --muted:#888; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--red);color:#fff;padding:16px 20px}
+  header h1{margin:0;font-size:20px}
+  main{max-width:760px;margin:16px auto;padding:0 16px 60px}
+  .card{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:16px;margin-bottom:16px}
+  .card h2{margin:0 0 10px;font-size:16px}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:14px}
+  .row:last-child{border-bottom:none}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+  .dot.yes{background:var(--ok)} .dot.no{background:#ccc}
+  button{border:none;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:14px}
+  .btn-primary{background:var(--red);color:#fff}
+  .btn-secondary{background:#eee;color:#333}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  textarea{width:100%;min-height:120px;font-family:monospace;font-size:13px;padding:8px;border:1px solid #ddd;border-radius:8px}
+  input[type=password],input[type=number]{padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px}
+  .state-badge{display:inline-block;background:#F5C518;color:#5a0305;font-weight:800;border-radius:999px;padding:4px 12px;font-size:13px}
+  .msg{font-size:13px;margin-top:6px}
+  .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
+  a.link{color:var(--red);word-break:break-all}
+</style>
+</head>
+<body>
+<header><h1>🎛 Quản trị Rung Chuông Vàng</h1></header>
+<main>
+  <div class="card">
+    <h2>Mã quản trị</h2>
+    <input type="password" id="adminKey" placeholder="Nhập mã quản trị" style="width:100%">
+    <div class="msg" id="keyMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Trạng thái hiện tại</h2>
+    <div id="stateBox"><span class="state-badge">Đang tải...</span></div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="advance('close')">Đóng câu hiện tại</button>
+      <button class="btn-secondary" onclick="advance('reopen')">Mở lại câu</button>
+      <button class="btn-primary" onclick="advance('next')">Sang câu tiếp →</button>
+    </div>
+    <div class="msg" id="advMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>CTV đã chấm câu hiện tại?</h2>
+    <div id="ctvStatus">—</div>
+  </div>
+
+  <div class="card">
+    <h2>Link cho từng CTV</h2>
+    <div id="ctvLinks">—</div>
+  </div>
+
+  <div class="card">
+    <h2>Link bảng xếp hạng (chiếu màn hình lớn)</h2>
+    <a class="link" id="lbLink" href="/leaderboard.html" target="_blank">/leaderboard.html</a>
+  </div>
+
+  <div class="card">
+    <h2>Nhập danh sách học sinh (số báo danh → tên)</h2>
+    <p style="font-size:13px;color:var(--muted)">Mỗi dòng 1 học sinh, định dạng: <code>số,tên</code> — ví dụ: <code>34,Nguyễn Văn A</code></p>
+    <textarea id="rosterText" placeholder="1,Nguyễn Văn A&#10;2,Trần Thị B&#10;..."></textarea>
+    <div class="btn-row"><button class="btn-primary" onclick="uploadRoster()">Lưu danh sách</button></div>
+    <div class="msg" id="rosterMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Sửa điểm thủ công</h2>
+    <p style="font-size:13px;color:var(--muted)">Dùng khi CTV chấm nhầm cần sửa lại 1 câu của 1 học sinh cụ thể.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      Vòng: <input type="number" id="corRound" min="1" max="2" value="1" style="width:60px">
+      Câu: <input type="number" id="corQ" min="1" max="10" value="1" style="width:60px">
+      Số báo danh: <input type="number" id="corNum" min="1" max="100" style="width:80px">
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="correct(true)" style="color:var(--ok)">Sửa thành Đúng</button>
+      <button class="btn-secondary" onclick="correct(false)" style="color:var(--bad)">Sửa thành Sai</button>
+    </div>
+    <div class="msg" id="corMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="color:var(--bad)">Reset toàn bộ dữ liệu</h2>
+    <p style="font-size:13px;color:var(--muted)">Xoá hết điểm, đưa về câu 1 vòng 1. Dùng khi chạy thử xong, chuẩn bị cho sự kiện thật.</p>
+    <button class="btn-secondary" onclick="resetAll()" style="color:var(--bad)">Reset</button>
+  </div>
+</main>
+
+<script>
+function adminKey() { return document.getElementById('adminKey').value; }
+
+async function adminFetch(url, opts = {}) {
+  opts.headers = Object.assign({}, opts.headers, { 'X-Admin-Key': adminKey(), 'Content-Type': 'application/json' });
+  const r = await fetch(url, opts);
+  if (r.status === 401) {
+    document.getElementById('keyMsg').textContent = 'Sai mã quản trị';
+    document.getElementById('keyMsg').className = 'msg err';
+    throw new Error('unauthorized');
+  }
+  document.getElementById('keyMsg').textContent = '';
+  return r.json();
+}
+
+async function refresh() {
+  if (!adminKey()) return;
+  try {
+    const d = await adminFetch('/api/admin/overview');
+    const roundLabel = d.round === 1 ? 'Vòng 1' : 'Vòng 2';
+    document.getElementById('stateBox').innerHTML =
+      `<span class="state-badge">${d.status === 'finished' ? 'ĐÃ KẾT THÚC' : roundLabel + ' · Câu ' + d.question + (d.status==='closed'?' (đã đóng)':'')}</span>
+       <span style="margin-left:10px;font-size:13px;color:#555">${d.submittedCount}/${d.totalCtv} CTV đã gửi</span>`;
+    document.getElementById('ctvStatus').innerHTML = d.ctvStatus.map(c =>
+      `<div class="row"><span><span class="dot ${c.submitted?'yes':'no'}"></span>${c.name} (HS ${c.range})</span><span>${c.submitted?'Đã chấm':'Chưa chấm'}</span></div>`
+    ).join('');
+    document.getElementById('ctvLinks').innerHTML = d.ctvStatus.map(c =>
+      `<div class="row"><span>${c.name} (HS ${c.range})</span><a class="link" href="/ctv.html?token=ctv${c.id}" target="_blank">/ctv.html?token=ctv${c.id}</a></div>`
+    ).join('');
+  } catch (e) {}
+}
+
+async function advance(action) {
+  try {
+    await adminFetch('/api/admin/advance', { method: 'POST', body: JSON.stringify({ action }) });
+    document.getElementById('advMsg').textContent = 'Đã cập nhật.';
+    document.getElementById('advMsg').className = 'msg ok';
+    refresh();
+  } catch (e) {}
+}
+
+async function uploadRoster() {
+  const lines = document.getElementById('rosterText').value.split('\n').map(l => l.trim()).filter(Boolean);
+  const rows = lines.map(l => {
+    const idx = l.indexOf(',');
+    if (idx === -1) return null;
+    return { number: l.slice(0, idx).trim(), name: l.slice(idx + 1).trim() };
+  }).filter(Boolean);
+  try {
+    const res = await adminFetch('/api/admin/roster', { method: 'POST', body: JSON.stringify({ rows }) });
+    document.getElementById('rosterMsg').textContent = `Đã lưu ${res.count} học sinh.`;
+    document.getElementById('rosterMsg').className = 'msg ok';
+  } catch (e) {}
+}
+
+async function correct(value) {
+  const round = Number(document.getElementById('corRound').value);
+  const question = Number(document.getElementById('corQ').value);
+  const number = Number(document.getElementById('corNum').value);
+  if (!number) { document.getElementById('corMsg').textContent = 'Nhập số báo danh.'; document.getElementById('corMsg').className='msg err'; return; }
+  try {
+    await adminFetch('/api/admin/correct', { method: 'POST', body: JSON.stringify({ round, question, number, value }) });
+    document.getElementById('corMsg').textContent = `Đã sửa HS #${number}, vòng ${round} câu ${question} → ${value ? 'Đúng' : 'Sai'}.`;
+    document.getElementById('corMsg').className = 'msg ok';
+  } catch (e) {}
+}
+
+async function resetAll() {
+  if (!confirm('Chắc chắn muốn xoá hết dữ liệu và reset về câu 1?')) return;
+  try {
+    await adminFetch('/api/admin/reset', { method: 'POST', body: '{}' });
+    refresh();
+  } catch (e) {}
+}
+
+document.getElementById('adminKey').addEventListener('change', refresh);
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>

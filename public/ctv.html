@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Chấm điểm CTV — Rung Chuông Vàng</title>
+<style>
+  :root{
+    --red:#C7090E; --red-dark:#8c0609; --gold:#F5C518; --ink:#1a1a1a; --bg:#fff4e8;
+    --ok:#1e8e3e; --ok-bg:#e6f6ea; --bad:#C7090E; --bad-bg:#fdeaea; --muted:#8a8a8a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);}
+  header{background:linear-gradient(135deg,var(--red),var(--red-dark));color:#fff;padding:14px 16px;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  header h1{font-size:16px;margin:0 0 2px}
+  header .sub{font-size:13px;opacity:.9}
+  .state-pill{display:inline-block;background:var(--gold);color:var(--red-dark);font-weight:800;border-radius:999px;padding:4px 12px;font-size:13px;margin-top:6px}
+  .state-pill.closed{background:#bbb;color:#333}
+  main{padding:12px;max-width:480px;margin:0 auto}
+  .card{background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .num{font-weight:800;font-size:20px;min-width:62px}
+  .name{font-size:14px;color:#555;flex:1}
+  .toggle{display:flex;gap:8px}
+  .btn{border:none;border-radius:10px;padding:12px 16px;font-size:18px;font-weight:800;cursor:pointer;min-width:58px;transition:transform .05s}
+  .btn:active{transform:scale(.94)}
+  .btn-ok{background:var(--ok-bg);color:var(--ok)}
+  .btn-ok.active{background:var(--ok);color:#fff}
+  .btn-bad{background:var(--bad-bg);color:var(--bad)}
+  .btn-bad.active{background:var(--bad);color:#fff}
+  .footer{position:sticky;bottom:0;background:#fff;padding:12px;box-shadow:0 -2px 10px rgba(0,0,0,.08)}
+  .submit-btn{width:100%;padding:16px;font-size:18px;font-weight:800;border:none;border-radius:12px;background:var(--red);color:#fff;cursor:pointer}
+  .submit-btn:disabled{background:#bbb;cursor:not-allowed}
+  .status-line{text-align:center;font-size:13px;color:var(--muted);margin-top:6px}
+  .closed-banner{background:#333;color:#fff;text-align:center;padding:10px;border-radius:10px;margin-bottom:10px;font-weight:700}
+  .err{color:var(--red);text-align:center;padding:40px 20px;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="ctvName">Đang tải...</h1>
+  <div class="sub" id="ctvRange"></div>
+  <div class="state-pill" id="statePill">—</div>
+</header>
+<main id="main">
+  <p style="text-align:center;color:#888">Đang tải dữ liệu...</p>
+</main>
+
+<script>
+const token = new URLSearchParams(location.search).get('token') || location.pathname.split('/').pop().replace('.html','');
+let currentData = null;
+let localMarks = {};
+let lastKnownKey = null; // `${round}-${question}` — only wipe local taps when this actually changes
+
+async function fetchState() {
+  try {
+    const r = await fetch(`/api/ctv/${encodeURIComponent(token)}`);
+    if (!r.ok) {
+      document.getElementById('main').innerHTML = '<div class="err">Link không hợp lệ hoặc đã hết hạn.<br>Liên hệ ban tổ chức.</div>';
+      return;
+    }
+    const data = await r.json();
+    const newKey = `${data.round}-${data.question}`;
+    const questionChanged = lastKnownKey !== null && newKey !== lastKnownKey;
+    currentData = data;
+    if (lastKnownKey === null || questionChanged || data.submitted) {
+      // Safe to resync from server: first load, question actually advanced, or server confirms our submit landed.
+      render(data);
+    } else {
+      // Same question, not yet submitted — DON'T overwrite unsaved taps, just refresh the status pill/closed state.
+      updateStatusOnly(data);
+    }
+    lastKnownKey = newKey;
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function updateStatusOnly(data) {
+  const pill = document.getElementById('statePill');
+  if (!pill) return;
+  const roundLabel = data.round === 1 ? 'Vòng 1' : 'Vòng 2';
+  pill.textContent = `${roundLabel} · Câu ${data.question}` + (data.status === 'closed' ? ' · ĐÃ ĐÓNG' : '');
+  pill.className = 'state-pill' + (data.status === 'closed' ? ' closed' : '');
+  if (data.status !== 'open') {
+    // question got closed while CTV was mid-tap — re-render fully to lock the buttons and show the banner.
+    render(data);
+  }
+}
+
+function render(data) {
+  document.getElementById('ctvName').textContent = data.ctv.name;
+  document.getElementById('ctvRange').textContent = `Phụ trách HS #${data.ctv.start}–#${data.ctv.end}`;
+  const pill = document.getElementById('statePill');
+  const roundLabel = data.round === 1 ? 'Vòng 1' : 'Vòng 2';
+  pill.textContent = `${roundLabel} · Câu ${data.question}` + (data.status === 'closed' ? ' · ĐÃ ĐÓNG' : '');
+  pill.className = 'state-pill' + (data.status === 'closed' ? ' closed' : '');
+
+  localMarks = {};
+  data.students.forEach(s => { if (s.mark !== null) localMarks[s.number] = s.mark; });
+
+  const closedBanner = data.status === 'closed'
+    ? '<div class="closed-banner">Câu hỏi đã đóng chấm — chờ câu tiếp theo</div>'
+    : (data.status === 'finished' ? '<div class="closed-banner">Cuộc thi đã kết thúc. Cảm ơn CTV!</div>' : '');
+
+  const cards = data.students.map(s => {
+    const okActive = localMarks[s.number] === true ? 'active' : '';
+    const badActive = localMarks[s.number] === false ? 'active' : '';
+    return `<div class="card">
+      <div class="num">#${s.number}</div>
+      <div class="name">${s.name}</div>
+      <div class="toggle">
+        <button class="btn btn-ok ${okActive}" onclick="mark(${s.number}, true)" ${data.status!=='open'?'disabled':''}>Đúng</button>
+        <button class="btn btn-bad ${badActive}" onclick="mark(${s.number}, false)" ${data.status!=='open'?'disabled':''}>Sai</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = closedBanner + cards + `
+    <div class="footer">
+      <button class="submit-btn" id="submitBtn" onclick="submitMarks()" ${data.status!=='open'?'disabled':''}>
+        ${data.submitted ? 'Đã gửi — Gửi lại' : 'Gửi điểm câu này'}
+      </button>
+      <div class="status-line">${data.submitted ? '✓ Đã gửi điểm câu hiện tại' : 'Chưa gửi — nhớ bấm Gửi sau khi chấm xong'}</div>
+    </div>`;
+}
+
+function mark(num, val) {
+  localMarks[num] = val;
+  currentData.students = currentData.students.map(s => s.number === num ? {...s, mark: val} : s);
+  render(currentData);
+}
+
+async function submitMarks() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Đang gửi...';
+  try {
+    const r = await fetch(`/api/ctv/${encodeURIComponent(token)}/mark`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ marks: localMarks, submit: true })
+    });
+    const res = await r.json();
+    if (res.error) { alert(res.error); }
+    await fetchState();
+  } catch (e) {
+    alert('Lỗi gửi, thử lại nhé.');
+    btn.disabled = false;
+  }
+}
+
+fetchState();
+setInterval(fetchState, 4000); // pick up round/question changes pushed by admin
+</script>
+</body>
+</html>

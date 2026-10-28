@@ -1,0 +1,11 @@
+node_modules/
+*.json.bak
+data.json
+*_shot*.json
+*_shot*.png
+server.log
+tunnel.log
+nav_ctv.json
+open_ctv.json
+open_leaderboard.json
+send_report.json
